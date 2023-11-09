@@ -3,7 +3,9 @@ const express = require('express');
 const ejs = require('ejs');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-const md5 = require("md5");
+//const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
 app.use(express.static('public'));
@@ -30,34 +32,44 @@ app.get("/register", (req, res) => {
 app.get("/login", (req, res) => {
   res.render("login")
 });
-console.log(md5(4321));
+
 app.post("/register", (req, res) => {
-  User.findOne({email: req.body.username})
-    .then((foundUser) => {
-      if(foundUser){
-        res.send("The username is not available.");
-      }else{
-        const newUser = new User ({
-          email: req.body.username,
-          password: md5(req.body.password)});
-        newUser.save();
-        res.render("secrets");
-      }
+
+  bcrypt.hash(req.body.password, saltRounds)
+    .then((hash) => {
+      User.findOne({email: req.body.username})
+        .then((foundUser) => {
+          if(foundUser){
+            res.send("The username is not available.");
+          }else{
+            const newUser = new User ({
+              email: req.body.username,
+              password: hash });
+            newUser.save();
+            res.render("secrets");
+          }
+        })
+        .catch((err) => { console.log(err)})
+     .catch((err) => {
+       console.log(err);
+     })
     })
-    .catch((err) => { console.log(err)})
 })
 
 app.post("/login", (req, res) => {
   const username = req.body.username;
-  const password = md5(req.body.password);
+  const password = req.body.password;
   User.findOne({email: req.body.username})
     .then((foundUser) => {
       if(foundUser){
-        if(foundUser.password === password){
-          res.render("secrets");
-        }else{
-          res.send("Incorrect password.");
-        }
+          bcrypt.compare(password, foundUser.password)
+            .then((result) => {
+              if(result === true){
+                res.render("secrets");
+              }else{
+                res.send("Incorrect password.");
+              }
+            })
       }else{
         res.send("User not found.");
       }
